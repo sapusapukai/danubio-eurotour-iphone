@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="DANUBIO">
+<meta name="theme-color" content="#09090f">
+<title>DANUBIO — Eurotour 2027</title>
+<style>
+:root {
+  --bg: #09090f;
+  --bg2: #0b0b14;
+  --bg3: #0d0d1a;
+  --border: #1a1a2a;
+  --text: #ddd;
+  --muted: #555;
+  --dim: #333;
+  --red: #e63946;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bot: env(safe-area-inset-bottom, 0px);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Courier New', Courier, monospace;
+  overscroll-behavior: none;
+}
+
+/* ── HEADER ── */
+#hdr {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  padding: calc(var(--safe-top) + 10px) 16px 10px;
+  background: linear-gradient(var(--bg) 80%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.hdr-left .sub { font-size: 7px; letter-spacing: 3px; color: var(--red); margin-bottom: 2px; }
+.hdr-left .title { font-size: 13px; font-weight: bold; letter-spacing: 2px; }
+.hdr-right { text-align: right; font-size: 8px; color: var(--dim); line-height: 1.7; }
+.hdr-right .base { color: var(--red); font-size: 8px; }
+
+/* ── MAP AREA ── */
+#map-wrap {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 55vh;
+  background: var(--bg);
+  overflow: hidden;
+  touch-action: none;
+}
+.grid-bg {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image: linear-gradient(#0e0e1c 1px,transparent 1px),linear-gradient(90deg,#0e0e1c 1px,transparent 1px);
+  background-size: 40px 40px;
+}
+#europe-svg {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+}
+.country {
+  fill: #131320; stroke: #222238; stroke-width: 0.7;
+  transition: fill .2s, stroke .2s;
+}
+
+/* ── BOTTOM SHEET ── */
+#sheet {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  height: calc(48vh + var(--safe-bot));
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  border-radius: 16px 16px 0 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  transition: transform .35s cubic-bezier(.32,.72,0,1);
+  will-change: transform;
+}
+#sheet.expanded {
+  transform: translateY(calc(-42vh));
+}
+#sheet-handle {
+  flex-shrink: 0;
+  padding: 10px 0 6px;
+  display: flex;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: none;
+}
+#sheet-handle::before {
+  content: '';
+  width: 36px; height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+}
+#sheet-header {
+  flex-shrink: 0;
+  padding: 0 16px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+#sheet-title { font-size: 9px; letter-spacing: 2px; color: var(--dim); }
+#sheet-count { font-size: 9px; color: var(--dim); }
+#sheet-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 10px 14px calc(var(--safe-bot) + 10px);
+}
+#sheet-body::-webkit-scrollbar { display: none; }
+
+/* ── COUNTRY LIST ── */
+.c-item {
+  padding: 12px 14px;
+  margin-bottom: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg3);
+  cursor: pointer;
+  transition: border-color .15s;
+  -webkit-user-select: none;
+}
+.c-item:active { background: #111122; }
+.c-flag { font-size: 22px; flex-shrink: 0; }
+.c-info { flex: 1; min-width: 0; }
+.c-name { font-size: 13px; font-weight: bold; }
+.c-city { font-size: 10px; color: var(--muted); margin-top: 2px; }
+.c-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+.c-tag { font-size: 7px; padding: 2px 8px; letter-spacing: 1px; border-radius: 3px; white-space: nowrap; }
+.c-count { font-size: 11px; color: var(--dim); }
+
+/* ── DETAIL VIEW ── */
+#detail {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 200;
+  background: var(--bg);
+  transform: translateX(100%);
+  transition: transform .3s cubic-bezier(.32,.72,0,1);
+  display: flex;
+  flex-direction: column;
+  will-change: transform;
+}
+#detail.open { transform: translateX(0); }
+
+#detail-nav {
+  flex-shrink: 0;
+  padding: calc(var(--safe-top) + 12px) 16px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+#back-btn {
+  background: none; border: none; color: var(--muted);
+  font-size: 18px; cursor: pointer; padding: 4px 8px 4px 0;
+  font-family: 'Courier New', monospace;
+  display: flex; align-items: center; gap: 6px;
+  -webkit-user-select: none;
+}
+#back-btn:active { color: var(--text); }
+#back-btn span { font-size: 10px; letter-spacing: 1px; }
+#detail-flag { font-size: 24px; }
+#detail-title { flex: 1; }
+#detail-name { font-size: 15px; font-weight: bold; }
+#detail-city { font-size: 10px; color: var(--muted); margin-top: 1px; }
+#detail-tag { font-size: 8px; letter-spacing: 1px; padding: 3px 10px; border-radius: 3px; flex-shrink: 0; }
+
+#detail-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 14px 16px calc(var(--safe-bot) + 20px);
+}
+#detail-body::-webkit-scrollbar { display: none; }
+
+#opp-label { font-size: 8px; letter-spacing: 3px; color: var(--dim); margin-bottom: 12px; }
+
+.opp {
+  padding: 14px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg3);
+}
+.opp-type { font-size: 9px; letter-spacing: 1px; color: var(--muted); margin-bottom: 4px; }
+.opp-name { font-size: 14px; font-weight: bold; margin-bottom: 8px; color: #e0e0e0; }
+.opp-desc { font-size: 11px; color: #777; line-height: 1.8; margin-bottom: 10px; }
+.opp-link {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; text-decoration: none; padding: 6px 12px;
+  border-radius: 4px; border: 1px solid;
+  -webkit-user-select: none;
+}
+.opp-link:active { opacity: .7; }
+
+/* ── MAP HINT ── */
+#map-hint {
+  position: fixed;
+  bottom: calc(48vh + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: #282838;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 60;
+}
+</style>
+</head>
+<body>
+
+<div id="hdr">
+  <div class="hdr-left">
+    <div class="sub">DANUBIO · DANZA / MULTIMEDIA / MÚSICA</div>
+    <div class="title">EUROTOUR 2027</div>
+  </div>
+  <div class="hdr-right">
+    <div class="base">★ Base: Praga</div>
+    <div id="hcount"></div>
+  </div>
+</div>
+
+<!-- MAP -->
+<div id="map-wrap">
+  <div class="grid-bg"></div>
+  <svg id="europe-svg" viewBox="100 30 750 780" preserveAspectRatio="xMidYMid meet">
+    <path id="s-NO" class="country" d="M762.4,44.4 L722.9,70.9 L615.4,102.2 L597.1,119.7 L557.1,135.3 L542.9,194.3 L557.1,222.1 L553.9,248.9 L564.3,274.8 L528.6,299.7 L514.7,338.5 L506.9,355.1 L513.6,366.0 L530.0,358.8 L498.9,372.5 L478.4,397.9 L465.0,391.7 L454.7,388.2 L433.4,360.8 L427.4,327.7 L433.3,296.8 L468.4,274.8 L514.3,248.9 L535.7,222.1 L550.0,194.3 L578.6,165.4 L607.1,135.3 L621.4,119.7 L642.9,103.8 L685.7,70.9 L762.4,44.4 Z"/>
+    <path id="s-SE" class="country" d="M621.4,119.7 L648.1,136.2 L671.4,135.3 L685.7,165.4 L700.0,200.0 L672.9,209.8 L651.4,248.9 L612.3,281.3 L590.0,323.9 L616.4,355.1 L605.0,372.5 L560.6,433.6 L559.0,447.3 L472.7,447.3 L485.7,424.7 L498.6,413.6 L509.1,397.9 L498.9,372.7 L513.6,366.0 L506.9,355.1 L514.7,338.5 L528.6,299.7 L564.3,274.8 L553.9,248.9 L557.1,222.1 L542.9,194.3 L557.1,165.4 L585.7,136.2 L621.4,119.7 Z"/>
+    <path id="s-FI" class="country" d="M755.3,67.5 L750.0,102.2 L764.3,119.7 L714.3,209.8 L728.6,248.9 L700.0,274.8 L671.4,311.9 L663.7,334.3 L685.7,342.7 L719.4,338.0 L754.3,342.7 L758.6,351.9 L785.7,335.7 L771.4,323.9 L792.9,299.7 L785.7,274.8 L764.3,248.9 L757.1,222.1 L714.3,209.8 L742.9,165.4 L757.1,135.3 L764.3,119.7 L755.3,67.5 Z"/>
+    <path id="s-DK" class="country" d="M509.1,397.9 L498.6,413.6 L485.7,424.7 L472.7,447.3 L498.9,458.2 L509.6,450.6 L536.9,440.4 L528.6,424.7 L508.3,402.9 L509.1,397.9 Z"/>
+    <path id="s-EE" class="country" d="M700.0,378.9 L671.4,402.9 L704.3,413.6 L747.1,424.1 L748.6,402.9 L754.3,383.3 L742.9,370.0 L714.3,356.5 L700.0,378.9 Z"/>
+    <path id="s-LV" class="country" d="M657.1,424.1 L672.9,438.6 L708.0,449.4 L725.7,466.6 L757.1,454.8 L747.1,424.1 L704.3,413.6 L671.4,402.9 L657.1,424.1 Z"/>
+    <path id="s-LT" class="country" d="M642.4,466.6 L672.4,466.0 L683.1,472.5 L692.6,484.4 L699.9,492.7 L725.7,466.6 L708.0,449.4 L672.9,438.6 L642.4,466.6 Z"/>
+    <path id="s-BY" class="country" d="M699.9,492.7 L700.4,526.7 L701.4,532.2 L700.4,537.3 L682.1,541.9 L679.3,558.5 L616.7,556.8 L601.6,565.4 L615.1,540.8 L590.4,530.4 L567.3,516.0 L558.9,496.3 L546.3,475.2 L556.0,468.2 L568.6,453.6 L642.4,466.6 L672.4,466.0 L692.6,484.4 L699.9,492.7 Z"/>
+    <path id="s-UA" class="country" d="M672.4,577.5 L678.4,589.6 L700.0,593.0 L730.1,580.8 L732.9,570.9 L743.3,577.9 L737.4,582.2 L772.1,593.4 L806.9,602.7 L785.7,617.6 L780.9,631.1 L771.0,632.6 L728.6,651.2 L685.7,653.0 L671.4,644.8 L650.0,643.2 L648.6,627.0 L654.0,615.8 L657.4,615.6 L672.9,610.3 L670.7,600.0 L625.1,589.4 L637.4,579.1 L654.3,576.1 L648.7,570.9 L658.1,562.6 L679.3,558.5 L672.4,577.5 Z"/>
+    <path id="s-IE" class="country" d="M268.3,452.2 L268.4,463.4 L257.9,473.5 L214.6,487.7 L214.3,510.0 L221.4,523.2 L257.1,512.2 L268.6,503.6 L271.4,491.2 L268.3,452.2 Z"/>
+    <path id="s-GB" class="country" d="M313.3,378.0 L286.4,392.3 L277.1,416.3 L285.1,437.5 L275.6,461.6 L291.0,472.9 L314.1,486.0 L314.3,524.5 L326.4,529.7 L347.0,535.0 L377.1,528.7 L377.9,514.3 L382.1,497.9 L358.1,479.9 L349.3,461.6 L328.9,438.4 L322.0,416.3 L286.4,392.3 L313.3,378.0 Z"/>
+    <path id="s-PT" class="country" d="M230.4,678.4 L233.6,685.4 L233.6,697.1 L230.7,711.2 L229.6,751.3 L251.1,756.2 L245.6,757.9 L255.6,759.8 L258.7,752.0 L256.4,735.5 L252.9,721.1 L256.4,711.3 L259.9,705.9 L259.9,686.1 L259.9,678.4 L230.4,678.4 Z"/>
+    <path id="s-ES" class="country" d="M402.4,654.9 L381.9,655.2 L361.6,670.4 L333.6,673.2 L331.1,660.5 L244.9,656.5 L241.4,665.7 L230.4,678.4 L233.6,685.4 L233.6,697.1 L230.7,711.2 L229.6,751.3 L221.4,771.6 L276.9,772.3 L280.3,769.0 L281.7,773.3 L327.4,773.4 L328.6,762.1 L334.7,751.7 L353.9,731.9 L362.0,725.4 L368.6,701.3 L386.9,693.1 L400.6,675.4 L402.4,654.9 Z"/>
+    <path id="s-FR" class="country" d="M393.1,529.9 L422.7,535.3 L442.6,546.4 L444.6,556.6 L465.6,564.0 L474.7,572.8 L465.3,591.8 L450.0,611.6 L456.4,621.9 L466.4,650.7 L462.4,655.2 L429.3,661.3 L401.7,665.1 L400.6,675.4 L386.9,693.1 L361.6,670.4 L331.1,660.5 L330.7,649.6 L341.4,623.9 L333.6,601.0 L320.9,592.7 L288.9,576.3 L288.1,569.1 L326.3,563.2 L339.6,555.9 L330.9,547.8 L341.9,541.5 L393.1,529.9 Z"/>
+    <path id="s-LU" class="country" d="M442.6,546.4 L444.6,556.6 L439.3,557.8 L431.0,559.1 L424.4,546.4 L415.1,543.7 L422.7,535.3 L442.6,546.4 Z"/>
+    <path id="s-BE" class="country" d="M393.6,522.3 L393.1,529.9 L341.9,541.5 L330.9,547.8 L339.6,555.9 L326.3,563.2 L288.1,569.1 L393.6,535.3 L444.9,522.3 L444.4,536.1 L443.0,543.3 L445.3,550.0 L444.7,556.4 L439.3,557.8 L431.0,559.1 L425.6,555.2 L424.4,546.4 L415.1,543.7 L422.7,535.3 L393.1,529.9 L393.6,522.3 Z"/>
+    <path id="s-NL" class="country" d="M458.6,489.4 L444.3,494.0 L428.3,500.7 L422.1,505.8 L412.1,516.7 L405.1,522.3 L444.9,522.3 L456.4,507.3 L455.6,494.0 L458.6,489.4 Z"/>
+    <path id="s-DE" class="country" d="M568.6,453.6 L556.0,468.2 L546.3,475.2 L558.9,496.3 L567.3,516.0 L571.0,530.4 L561.4,538.8 L542.4,543.1 L535.7,546.6 L535.3,553.6 L554.9,572.8 L543.0,590.4 L532.7,591.8 L505.6,584.8 L502.9,595.1 L477.7,595.1 L474.7,591.5 L465.3,591.8 L474.7,572.8 L465.6,564.0 L444.6,556.6 L442.6,546.4 L422.7,535.3 L444.9,522.3 L449.6,516.0 L452.6,511.1 L458.6,489.4 L483.3,476.6 L473.3,470.7 L568.6,453.6 Z"/>
+    <path id="s-CH" class="country" d="M474.7,591.5 L477.7,595.1 L502.9,595.1 L531.4,591.8 L543.0,590.4 L541.9,600.8 L534.7,608.4 L478.4,618.8 L468.6,618.4 L462.3,614.6 L450.0,611.6 L465.3,591.8 L474.7,591.5 Z"/>
+    <path id="s-AT" class="country" d="M474.7,591.5 L465.3,591.8 L450.0,611.6 L462.3,614.6 L468.6,618.4 L478.4,618.8 L534.7,608.4 L541.9,600.8 L543.0,590.4 L554.9,572.8 L543.3,575.1 L571.3,579.6 L571.7,570.9 L598.6,571.2 L599.9,584.8 L587.6,589.9 L592.1,604.2 L569.1,610.3 L554.3,625.5 L550.9,611.4 L478.4,618.8 L494.0,611.4 L480.7,600.7 L474.7,591.5 Z"/>
+    <path id="s-CZ" class="country" d="M571.0,530.4 L561.4,538.8 L542.4,543.1 L535.7,546.6 L535.3,553.6 L543.3,575.1 L571.3,579.6 L571.7,570.9 L598.6,571.2 L601.6,565.4 L616.7,556.8 L622.1,550.2 L615.1,540.8 L590.4,530.4 L571.6,533.9 L571.0,530.4 Z"/>
+    <path id="s-SK" class="country" d="M601.6,565.4 L598.6,571.2 L599.9,584.8 L607.0,587.5 L625.1,589.4 L637.4,579.1 L654.3,576.1 L648.7,570.9 L658.1,562.6 L669.6,570.7 L683.3,575.1 L679.3,556.8 L623.9,544.2 L622.1,550.2 L616.7,556.8 L601.6,565.4 Z"/>
+    <path id="s-PL" class="country" d="M642.4,466.6 L672.4,466.0 L683.1,472.5 L692.6,484.4 L699.9,492.7 L700.4,526.7 L701.4,532.2 L700.4,537.3 L682.1,541.9 L679.3,558.5 L616.7,556.8 L622.1,550.2 L623.9,544.2 L615.1,540.8 L590.4,530.4 L567.3,516.0 L558.9,496.3 L546.3,475.2 L556.0,468.2 L568.6,453.6 L642.4,466.6 Z"/>
+    <path id="s-HU" class="country" d="M599.9,584.8 L587.6,589.9 L592.1,604.2 L580.7,607.7 L569.1,610.3 L589.4,620.9 L600.6,622.1 L624.0,623.2 L648.6,627.0 L654.0,615.8 L657.4,615.6 L672.9,610.3 L670.7,600.0 L672.7,593.9 L672.4,577.5 L683.3,575.1 L669.6,570.7 L658.1,562.6 L648.7,570.9 L654.3,576.1 L637.4,579.1 L625.1,589.4 L607.0,587.5 L599.9,584.8 Z"/>
+    <path id="s-RO" class="country" d="M672.4,577.5 L672.7,593.9 L672.9,610.3 L657.4,615.6 L654.0,615.8 L648.6,627.0 L643.9,648.6 L633.3,656.0 L685.7,653.0 L728.6,651.2 L771.0,632.6 L780.9,631.1 L785.7,617.6 L806.9,602.7 L772.1,593.4 L737.4,582.2 L743.3,577.9 L732.9,570.9 L730.1,580.8 L700.0,593.0 L678.4,589.6 L672.4,577.5 Z"/>
+    <path id="s-HR" class="country" d="M569.1,610.3 L580.7,607.7 L592.1,604.2 L589.4,620.9 L624.0,623.2 L648.6,627.0 L643.9,648.6 L633.3,656.0 L611.4,663.9 L590.6,668.4 L586.0,659.7 L574.3,651.2 L569.1,635.0 L554.3,625.5 L569.1,610.3 Z"/>
+    <path id="s-RS" class="country" d="M648.6,627.0 L650.0,643.2 L671.4,644.8 L685.7,653.0 L678.6,663.9 L665.7,675.0 L654.3,663.9 L633.3,656.0 L643.9,648.6 L648.6,627.0 Z"/>
+    <path id="s-BG" class="country" d="M685.7,653.0 L728.6,651.2 L750.0,648.0 L765.7,656.0 L757.1,667.1 L757.1,682.7 L732.7,685.1 L704.3,682.7 L690.0,695.1 L665.7,675.0 L678.6,663.9 L685.7,653.0 Z"/>
+    <path id="s-GR" class="country" d="M732.7,685.1 L704.3,682.7 L690.0,695.1 L671.4,699.7 L678.6,708.8 L643.6,719.0 L653.3,738.3 L661.4,748.1 L660.0,758.9 L684.3,760.4 L700.0,750.3 L707.1,743.0 L714.3,735.6 L728.6,735.6 L735.7,713.3 L732.7,685.1 Z"/>
+    <path id="s-IT" class="country" d="M466.4,650.7 L464.1,659.7 L500.0,654.6 L517.1,671.8 L533.6,687.8 L545.7,713.3 L568.3,736.1 L580.6,744.0 L584.3,738.0 L593.6,731.1 L621.4,713.4 L621.3,709.1 L585.4,696.9 L580.4,680.7 L590.6,668.4 L643.9,648.6 L648.6,627.0 L624.0,623.2 L589.4,620.9 L569.1,610.3 L554.3,625.5 L478.4,618.8 L468.6,618.4 L462.3,614.6 L456.4,621.9 L466.4,650.7 Z"/>
+    <g id="lines-g"></g>
+    <g id="dots-g"></g>
+  </svg>
+</div>
+
+<div id="map-hint">↑ tocá un país en el mapa</div>
+
+<!-- BOTTOM SHEET -->
+<div id="sheet">
+  <div id="sheet-handle" id="handle"></div>
+  <div id="sheet-header">
+    <div id="sheet-title">VENUES · FESTIVALES · REDES</div>
+    <div id="sheet-count"></div>
+  </div>
+  <div id="sheet-body" id="sb-content"></div>
+</div>
+
+<!-- DETAIL PANEL (slides in from right) -->
+<div id="detail">
+  <div id="detail-nav">
+    <button id="back-btn" onclick="closeDetail()">‹ <span>VOLVER</span></button>
+    <div id="detail-flag"></div>
+    <div id="detail-title">
+      <div id="detail-name"></div>
+      <div id="detail-city"></div>
+    </div>
+    <div id="detail-tag"></div>
+  </div>
+  <div id="detail-body">
+    <div id="opp-label"></div>
+    <div id="opp-list"></div>
+  </div>
+</div>
+
+<script>
+const COUNTRIES={
+  CZ:{name:"República Checa",city:"Praga",flag:"🇨🇿",tag:"BASE ★",tagColor:"#e63946",dot:{x:576,y:551},shapeId:"s-CZ",opportunities:[
+    {type:"🏛️ VENUE",name:"MeetFactory",desc:"Centro internacional de arte contemporáneo en Praga. Performance, danza y teatro experimental. Uno de los espacios más abiertos a propuestas interdisciplinares de la ciudad.",link:"https://www.meetfactory.cz"},
+    {type:"🎭 VENUE",name:"NoD / Roxy",desc:"Espacio experimental de artes escénicas sobre el club Roxy. Teatro de danza no-verbal, performance multimedia y galería. El perfil exacto de DANUBIO.",link:"https://www.roxy.cz"},
+    {type:"🎭 VENUE",name:"Jatka78",desc:"Espacio de artes escénicas contemporáneas en Praga. Teatro físico, nuevo circo, danza y performance. Programación internacional activa.",link:"https://www.jatka78.cz"},
+    {type:"🔗 RED",name:"Tanec Praha",desc:"Organización de danza contemporánea de Praga. Miembro de Life Long Burning (red europea de danza). Conecta artistas internacionales con venues y festivales europeos.",link:"https://www.tanecpraha.cz"},
+    {type:"🎪 FESTIVAL",name:"4+4 Days in Motion",desc:"Festival internacional de performance, danza y artes visuales en Praga. Octubre. Interdisciplinar por definición. Co-producciones con artistas internacionales.",link:"https://www.ctyridny.cz"}
+  ]},
+  NL:{name:"Países Bajos",city:"La Haya / Amsterdam",flag:"🇳🇱",tag:"MUY RELEVANTE",tagColor:"#f72585",dot:{x:439,y:504},shapeId:"s-NL",opportunities:[
+    {type:"🏆 FESTIVAL",name:"Rewire Festival (La Haya)",desc:"Festival anual de música y artes interdisciplinares. Abril. Performances especiales, obras comisionadas, instalaciones, teatro de danza y multimedia. El perfil de DANUBIO encaja perfecto.",link:"https://www.rewirefestival.nl"},
+    {type:"🎉 FESTIVAL",name:"Holland Festival (Amsterdam)",desc:"El festival internacional de artes escénicas más grande de los Países Bajos. Junio. Música, teatro, danza, multimedia y cine.",link:"https://www.hollandfestival.nl/en"},
+    {type:"🎪 FESTIVAL",name:"SPRING Performing Arts Festival (Utrecht)",desc:"Festival de artes escénicas contemporáneas. Crossovers en performance. Programación internacional activa. Muy abierto a proyectos experimentales.",link:"https://www.springutrecht.nl"},
+    {type:"🎭 VENUE",name:"Korzo (La Haya)",desc:"Venue de danza y performance contemporánea. Programación de artistas emergentes e internacionales. Parte del ecosistema de Rewire Festival.",link:"https://www.korzo.nl"},
+    {type:"🎭 VENUE",name:"Frascati Theater (Amsterdam)",desc:"Teatro independiente especializado en teatro contemporáneo, danza y performance. Programación experimental activa.",link:"https://www.frascatitheater.nl"}
+  ]},
+  BE:{name:"Bélgica",city:"Bruselas",flag:"🇧🇪",tag:"RED CLAVE",tagColor:"#00b4d8",dot:{x:417,y:540},shapeId:"s-BE",opportunities:[
+    {type:"🏆 FESTIVAL",name:"Kunstenfestivaldesarts",desc:"Festival internacional de artes escénicas en Bruselas. Mayo. Uno de los más importantes de Europa para teatro, danza y performance interdisciplinar. Proceso de selección largo — iniciar en 2026.",link:"https://www.kunstenfestivaldesarts.be"},
+    {type:"🎭 VENUE",name:"Kaaitheater Bruselas",desc:"Venue de performance contemporáneo. Miembro de Be My Guest. Circulación europea facilitada vía Tanzquartier Wien.",link:"https://www.kaaitheater.be"},
+    {type:"🔗 RED",name:"Les Brigittines",desc:"Centro de artes del movimiento. Miembro de Life Long Burning (red europea de danza). Hub clave para artistas que quieren circular por Europa.",link:"https://www.lesbrigittines.be"},
+    {type:"🎭 VENUE",name:"Beursschouwburg",desc:"Centro de artes contemporáneas en Bruselas. Programación interdisciplinar: performance, música experimental, teatro y artes visuales.",link:"https://www.beursschouwburg.be"}
+  ]},
+  DE:{name:"Alemania",city:"Berlín / Dresde",flag:"🇩🇪",tag:"CIRCUITO MAYOR",tagColor:"#457b9d",dot:{x:506,y:535},shapeId:"s-DE",opportunities:[
+    {type:"🏆 BERLÍN",name:"HAU — Hebbel am Ufer",desc:"Venue de performance más importante de Alemania. Alliance of International Production Houses. Programación arriesgada e internacional. Referente absoluto para una obra como DANUBIO.",link:"https://www.hebbel-am-ufer.de"},
+    {type:"🏛️ DRESDE",name:"HELLERAU — European Centre for the Arts",desc:"Centro interdisciplinario internacional en Dresde. Danza, performance, teatro, media art y música. Residencias y co-producciones. Contacto: ticket@hellerau.org",link:"https://www.hellerau.org"},
+    {type:"🎭 BERLÍN",name:"Uferstudios Berlin",desc:"Espacio de danza y performance independiente. Residencias internacionales. Conectado con Life Long Burning.",link:"https://www.uferstudios.com"},
+    {type:"🎪 BERLÍN",name:"Sophiensaele",desc:"Teatro independiente de Berlín. Danza contemporánea, teatro físico y performance. Programación internacional activa.",link:"https://www.sophiensaele.com"},
+    {type:"🔗 RED",name:"Performing Arts Program Berlin (PAP)",desc:"Plataforma de la escena independiente berlinesa. Directorio de venues, festivales y convocatorias. Punto de entrada al ecosistema local.",link:"https://www.pap-berlin.de/en"}
+  ]},
+  FR:{name:"Francia",city:"París / Marsella / Lyon",flag:"🇫🇷",tag:"LARGO PLAZO",tagColor:"#9b5de5",dot:{x:389,y:601},shapeId:"s-FR",opportunities:[
+    {type:"🏆 FESTIVAL",name:"Festival d'Automne à París",desc:"Artes visuales, teatro, danza, música y cine. Perfil: interdisciplinariedad global. Octubre-Diciembre. Proceso de selección largo — iniciar contacto en 2026.",link:"https://www.festival-automne.com"},
+    {type:"🎭 VENUE",name:"Théâtre de la Bastille (París)",desc:"Miembro del programa Be My Guest junto a Tanzquartier Wien. Si TQW acepta DANUBIO, puede facilitar la circulación en Bastille directamente.",link:"https://www.theatre-bastille.com"},
+    {type:"🎪 FESTIVAL",name:"Festival de Marseille",desc:"Festival de danza y artes escénicas en Marsella. Foco en performance interdisciplinar. Presencia internacional fuerte. Candidatura anual.",link:"https://www.festivaldemarseille.com"},
+    {type:"🏙️ VENUE",name:"La Villette (París)",desc:"Gran parque cultural con programación de danza, teatro y performance. Residencias abiertas a compañías internacionales.",link:"https://lavillette.com"},
+    {type:"🎭 VENUE",name:"Maison de la Danse (Lyon)",desc:"Uno de los venues de danza más importantes de Francia. 60+ espectáculos internacionales por año. Miembro de redes europeas de danza.",link:"https://www.maisondeladanse.com"}
+  ]},
+  AT:{name:"Austria",city:"Viena",flag:"🇦🇹",tag:"HUB DANZA EU",tagColor:"#f4a261",dot:{x:535,y:597},shapeId:"s-AT",opportunities:[
+    {type:"🏆 VENUE",name:"Tanzquartier Wien (TQW)",desc:"Uno de los centros de coreografía contemporánea más importantes de Europa. Programa internacional, residencias y co-producciones. Nodo de la red Be My Guest. Email: tanzquartier@tqw.at",link:"https://www.tqw.at"},
+    {type:"🎉 FESTIVAL",name:"ImPulsTanz Vienna",desc:"El festival de danza contemporánea más grande de Europa. Julio-Agosto. 250+ workshops. Networking masivo con programadores europeos. Solicitar acreditación profesional.",link:"https://www.impulstanz.com"},
+    {type:"🎭 VENUE",name:"brut Wien",desc:"Espacio de artes escénicas contemporáneas. Miembro de PAKT Wien. Programación experimental e interdisciplinar.",link:"https://www.brut-wien.at"},
+    {type:"📋 OPEN CALL",name:"Kultursommer Wien",desc:"Festival de verano en espacios públicos de Viena. Junio-Agosto. Open call anual (cierra enero). Danza, performance, teatro e instalación.",link:"https://www.kultursommer.wien"},
+    {type:"🎭 VENUE",name:"WUK — Werkstätten und Kulturhaus",desc:"Gran centro cultural independiente en Viena. Música, teatro, danza y artes visuales. Programación experimental e internacional muy activa.",link:"https://www.wuk.at"}
+  ]},
+  HU:{name:"Hungría",city:"Budapest",flag:"🇭🇺",tag:"RECOMENDADO",tagColor:"#e9c46a",dot:{x:632,y:596},shapeId:"s-HU",opportunities:[
+    {type:"🏆 VENUE",name:"Trafó — House of Contemporary Arts",desc:"Venue único en Hungría. Teatro, danza, nuevo circo, música y artes visuales. Espacio post-industrial. Co-produce con artistas internacionales.",link:"https://www.trafo.hu"},
+    {type:"🔗 RED",name:"Workshop Foundation Budapest",desc:"200+ artistas/año. Residencias e intercambios internacionales. Estudios en Trafó y Jurányi Incubator House.",link:"https://www.wsf.hu"},
+    {type:"🌐 FESTIVAL",name:"Café Budapest Contemporary Arts Festival",desc:"Festival multidisciplinario: danza, teatro contemporáneo, música, circo, literatura y artes visuales. Octubre.",link:"https://www.cafebudapestfest.hu"},
+    {type:"🎭 VENUE",name:"MU Színház",desc:"Teatro independiente de Budapest. Danza contemporánea, teatro de movimiento y performance. Programación alternativa activa.",link:"https://www.mu.hu"}
+  ]},
+  IT:{name:"Italia",city:"Bologna / Turín / Milán",flag:"🇮🇹",tag:"PRIORIDAD",tagColor:"#2a9d8f",dot:{x:551,y:667},shapeId:"s-IT",opportunities:[
+    {type:"🏙️ FESTIVAL",name:"Danza Urbana Bologna",desc:"Festival internacional de danza en paisajes urbanos de Bologna. 30+ ediciones. Septiembre-Octubre. Open call anual — candidatura antes de dic 2026.",link:"https://www.danzaurbana.eu"},
+    {type:"🎭 VENUE",name:"DAS — Dispositivo Arti Sperimentali (Bologna)",desc:"Espacio de artes experimentales en Bologna. Danza, performance y teatro contemporáneo. Investigar programador para contacto directo.",link:"https://www.stormodas.it"},
+    {type:"🌐 RED",name:"Lavanderia a Vapore (Turín)",desc:"Centro de creación coreográfica. Miembro de la red europea de danza junto a Tanzquartier Wien. Hub para giras europeas desde el norte de Italia.",link:"https://www.lavanderiavapore.it"},
+    {type:"🎪 FESTIVAL",name:"INTERPLAY — Mosaico Danza (Turín)",desc:"Festival internacional de danza contemporánea y artes escénicas. 30+ años. Muy abierto a compañías latinoamericanas.",link:"https://www.interplayfestival.it"},
+    {type:"🏆 VENUE",name:"Teatro Franco Parenti (Milán)",desc:"Teatro de vanguardia en Milán. Programación de teatro contemporáneo, danza y performance interdisciplinar.",link:"https://www.teatrofrancoparenti.it"},
+    {type:"🎪 FESTIVAL",name:"Santarcangelo Festival",desc:"Uno de los festivales de artes escénicas más importantes de Italia. Teatro de investigación, danza, performance en espacios no convencionales. Julio.",link:"https://www.santarcangelofestival.com"}
+  ]},
+  PL:{name:"Polonia",city:"Poznan / Varsovia",flag:"🇵🇱",tag:"FINANCIAMIENTO EU",tagColor:"#06d6a0",dot:{x:636,y:508},shapeId:"s-PL",opportunities:[
+    {type:"🏙️ FESTIVAL",name:"Malta Festival Poznań",desc:"Festival de artes escénicas en el espacio urbano. Teatro, danza, performance y experimentos. Programación internacional activa.",link:"https://www.malta-festival.pl"},
+    {type:"🎭 VENUE",name:"TR Warszawa (Varsovia)",desc:"Teatro de referencia en Varsovia para performance contemporáneo e interdisciplinar. Programación internacional.",link:"https://www.trwarszawa.pl"},
+    {type:"🎪 FESTIVAL",name:"Konfrontacje Teatralne (Lublin)",desc:"Festival de teatro contemporáneo. Programación internacional. Abierto a propuestas interdisciplinares de compañías extranjeras.",link:"https://www.teatrnn.pl/konfrontacje"},
+    {type:"💰 FONDO",name:"EFFEA — European Festivals Fund",desc:"Fondo europeo para artistas emergentes. EFFEA Discovery (€8.000) o Springboard (€15.000). Residencias en 3+ festivales europeos. Puede co-financiar parte del eurotour.",link:"https://www.effea.eu"}
+  ]},
+  ES:{name:"España",city:"Barcelona / Madrid",flag:"🇪🇸",tag:"CONEXIÓN IBÉRICA",tagColor:"#ff6b6b",dot:{x:311,y:709},shapeId:"s-ES",opportunities:[
+    {type:"🏆 VENUE",name:"Mercat de les Flors (Barcelona)",desc:"Centro de las artes del movimiento de Barcelona. Miembro de Life Long Burning. Programación internacional de danza y performance.",link:"https://www.mercatflors.cat"},
+    {type:"🎪 FESTIVAL",name:"Festival Grec (Barcelona)",desc:"Festival de verano de Barcelona. Teatro, danza, circo y música en espacios emblemáticos. Julio. Programación internacional.",link:"https://www.barcelona.cat/grec"},
+    {type:"🎭 VENUE",name:"Teatre Lliure (Barcelona)",desc:"Teatro de referencia en Barcelona para las artes escénicas contemporáneas. Programación internacional de teatro, danza y performance.",link:"https://www.teatrelliure.com"},
+    {type:"🎭 VENUE",name:"Centro Dramático Nacional (Madrid)",desc:"Programación de teatro contemporáneo e interdisciplinar. Presencia internacional. Posibilidad de gira Madrid-Barcelona en el mismo viaje.",link:"https://cdn.mcu.es"},
+    {type:"🎪 FESTIVAL",name:"Festival de Otoño (Madrid)",desc:"Festival internacional de artes escénicas de Madrid. Otoño. Teatro, danza, performance y música.",link:"https://www.madrid.org/festivaldeotonyo"}
+  ]}
+};
+
+// ── INIT ──
+const CZdot = COUNTRIES.CZ.dot;
+let sel = null;
+const tot = Object.values(COUNTRIES).reduce((a,c)=>a+c.opportunities.length,0);
+document.getElementById('hcount').textContent = Object.keys(COUNTRIES).length+' países';
+document.getElementById('sheet-count').textContent = tot+' oportunidades';
+
+function ns(t){return document.createElementNS('http://www.w3.org/2000/svg',t);}
+const lG=document.getElementById('lines-g');
+const dG=document.getElementById('dots-g');
+
+// Lines from Prague
+Object.entries(COUNTRIES).forEach(([k,c])=>{
+  if(k==='CZ')return;
+  const l=ns('line');
+  l.setAttribute('x1',CZdot.x);l.setAttribute('y1',CZdot.y);
+  l.setAttribute('x2',c.dot.x);l.setAttribute('y2',c.dot.y);
+  l.setAttribute('stroke',c.tagColor);l.setAttribute('stroke-dasharray','6 5');
+  l.setAttribute('stroke-width','1');l.setAttribute('opacity','0.1');
+  l.id='ln-'+k; lG.appendChild(l);
+});
+
+// Dots
+Object.entries(COUNTRIES).forEach(([k,c])=>{
+  const g=ns('g'); g.id='dg-'+k;
+  const pulse=ns('circle');
+  pulse.setAttribute('cx',c.dot.x);pulse.setAttribute('cy',c.dot.y);pulse.setAttribute('r','16');
+  pulse.setAttribute('fill','none');pulse.setAttribute('stroke',c.tagColor);
+  pulse.setAttribute('stroke-width','1');pulse.setAttribute('opacity','0');pulse.id='pu-'+k;
+  const dot=ns('circle');
+  dot.setAttribute('cx',c.dot.x);dot.setAttribute('cy',c.dot.y);dot.setAttribute('r','7');
+  dot.setAttribute('fill',c.tagColor);dot.setAttribute('stroke','rgba(255,255,255,0.2)');
+  dot.setAttribute('stroke-width','1.5');dot.id='dt-'+k;
+  dot.style.filter='drop-shadow(0 0 6px '+c.tagColor+'99)';
+  const txt=ns('text');
+  txt.setAttribute('x',c.dot.x);txt.setAttribute('y',c.dot.y+19);
+  txt.setAttribute('text-anchor','middle');txt.setAttribute('fill','#484858');
+  txt.setAttribute('font-size','7');txt.setAttribute('font-family','Courier New,monospace');
+  txt.style.pointerEvents='none'; txt.id='lb-'+k;
+  txt.textContent=c.flag+' '+c.city.split('/')[0].trim();
+  g.appendChild(pulse);g.appendChild(dot);g.appendChild(txt);
+  g.addEventListener('click',e=>{e.stopPropagation();tapCountry(k);});
+  dG.appendChild(g);
+});
+
+// Shape clicks
+Object.entries(COUNTRIES).forEach(([k,c])=>{
+  const s=document.getElementById(c.shapeId);
+  if(s) s.addEventListener('click',()=>tapCountry(k));
+});
+
+function tapCountry(k) {
+  sel = (sel===k) ? null : k;
+  updateMap();
+  if(sel) openDetail(sel);
+}
+
+function updateMap() {
+  Object.entries(COUNTRIES).forEach(([k,c])=>{
+    const s=document.getElementById(c.shapeId);
+    if(s){
+      if(sel===k){s.style.fill=c.tagColor+'2e';s.style.stroke=c.tagColor;s.style.strokeWidth='1.5';}
+      else{s.style.fill='';s.style.stroke='';s.style.strokeWidth='';}
+    }
+    const dt=document.getElementById('dt-'+k);
+    const pu=document.getElementById('pu-'+k);
+    const lb=document.getElementById('lb-'+k);
+    const ln=document.getElementById('ln-'+k);
+    if(sel===k){
+      dt.setAttribute('r','11');dt.setAttribute('stroke','rgba(255,255,255,0.6)');
+      dt.style.filter='drop-shadow(0 0 14px '+c.tagColor+')';
+      pu.setAttribute('opacity','0.4');lb.setAttribute('fill',c.tagColor);
+      if(ln)ln.setAttribute('opacity','0.6');
+    }else{
+      dt.setAttribute('r','7');dt.setAttribute('stroke','rgba(255,255,255,0.2)');
+      dt.style.filter='drop-shadow(0 0 6px '+c.tagColor+'99)';
+      pu.setAttribute('opacity','0');lb.setAttribute('fill','#484858');
+      if(ln)ln.setAttribute('opacity','0.1');
+    }
+  });
+}
+
+// ── DETAIL PANEL ──
+function openDetail(k) {
+  const c = COUNTRIES[k];
+  document.getElementById('detail-flag').textContent = c.flag;
+  document.getElementById('detail-name').textContent = c.name;
+  document.getElementById('detail-city').textContent = c.city;
+  const tag = document.getElementById('detail-tag');
+  tag.textContent = c.tag;
+  tag.style.color = c.tagColor;
+  tag.style.border = '1px solid '+c.tagColor;
+  document.getElementById('opp-label').textContent = c.opportunities.length+' OPORTUNIDADES';
+  document.getElementById('opp-list').innerHTML = c.opportunities.map(o=>
+    '<div class="opp" style="border-left:3px solid '+c.tagColor+'55">'
+    +'<div class="opp-type">'+o.type+'</div>'
+    +'<div class="opp-name">'+o.name+'</div>'
+    +'<div class="opp-desc">'+o.desc+'</div>'
+    +'<a href="'+o.link+'" target="_blank" rel="noopener noreferrer" class="opp-link" style="color:'+c.tagColor+';border-color:'+c.tagColor+'44;background:'+c.tagColor+'11">→ abrir sitio</a>'
+    +'</div>'
+  ).join('');
+  document.getElementById('detail-body').scrollTop = 0;
+  document.getElementById('detail').classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('detail').classList.remove('open');
+  sel = null;
+  updateMap();
+}
+
+// ── SHEET LIST ──
+function renderList() {
+  let h='';
+  Object.entries(COUNTRIES).forEach(([k,c])=>{
+    h+='<div class="c-item" onclick="tapCountry(\''+k+'\')" style="border-color:var(--border)">'
+      +'<span class="c-flag">'+c.flag+'</span>'
+      +'<div class="c-info"><div class="c-name">'+c.name+'</div><div class="c-city">'+c.city+'</div></div>'
+      +'<div class="c-right">'
+      +'<div class="c-tag" style="color:'+c.tagColor+';border:1px solid '+c.tagColor+'33;background:'+c.tagColor+'11">'+c.tag+'</div>'
+      +'<div class="c-count">'+c.opportunities.length+' →</div>'
+      +'</div></div>';
+  });
+  document.getElementById('sb-content').innerHTML = h;
+}
+
+// ── SHEET DRAG ──
+const sheet = document.getElementById('sheet');
+const handle = document.getElementById('sheet-handle');
+let startY=0, startT=0, isDragging=false, sheetExpanded=false;
+
+handle.addEventListener('touchstart', e=>{
+  startY = e.touches[0].clientY;
+  startT = Date.now();
+  isDragging = true;
+}, {passive:true});
+
+handle.addEventListener('touchmove', e=>{
+  if(!isDragging) return;
+  const dy = e.touches[0].clientY - startY;
+  if(Math.abs(dy)>5) e.preventDefault();
+}, {passive:false});
+
+handle.addEventListener('touchend', e=>{
+  if(!isDragging) return;
+  isDragging = false;
+  const dy = e.changedTouches[0].clientY - startY;
+  const dt = Date.now() - startT;
+  if(dy < -30 || (dy < 0 && dt < 200)) {
+    sheet.classList.add('expanded');
+    sheetExpanded = true;
+  } else if(dy > 30 || (dy > 0 && dt < 200)) {
+    sheet.classList.remove('expanded');
+    sheetExpanded = false;
+  }
+}, {passive:true});
+
+// Tap handle = toggle
+handle.addEventListener('click', ()=>{
+  sheetExpanded = !sheetExpanded;
+  sheet.classList.toggle('expanded', sheetExpanded);
+});
+
+// ── SWIPE BACK on detail ──
+let detailStartX = 0;
+const detailEl = document.getElementById('detail');
+detailEl.addEventListener('touchstart', e=>{
+  detailStartX = e.touches[0].clientX;
+}, {passive:true});
+detailEl.addEventListener('touchend', e=>{
+  const dx = e.changedTouches[0].clientX - detailStartX;
+  if(dx > 60) closeDetail();
+}, {passive:true});
+
+// ── START ──
+renderList();
+</script>
+</body>
+</html>
